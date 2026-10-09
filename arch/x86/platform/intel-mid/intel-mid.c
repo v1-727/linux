@@ -59,6 +59,7 @@ static void intel_mid_arch_setup(void)
 {
 	switch (boot_cpu_data.x86_vfm) {
 	case INTEL_ATOM_SILVERMONT_MID:
+	case INTEL_ATOM_SILVERMONT_MID2:
 		x86_platform.legacy.rtc = 1;
 		break;
 	default:

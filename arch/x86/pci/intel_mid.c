@@ -42,6 +42,7 @@
 /* Quirks for the listed devices */
 #define PCI_DEVICE_ID_INTEL_MRFLD_MMC	0x1190
 #define PCI_DEVICE_ID_INTEL_MRFLD_HSU	0x1191
+#define PCI_DEVICE_ID_INTEL_MOFLD_EMMC	0x1490
 
 /* Fixed BAR fields */
 #define PCIE_VNDR_CAP_ID_FIXED_BAR 0x00	/* Fixed BAR (TBD) */
@@ -217,6 +218,7 @@ static int pci_write(struct pci_bus *bus, unsigned int devfn, int where,
 
 static const struct x86_cpu_id intel_mid_cpu_ids[] = {
 	X86_MATCH_VFM(INTEL_ATOM_SILVERMONT_MID, NULL),
+	X86_MATCH_VFM(INTEL_ATOM_SILVERMONT_MID2, NULL),
 	{}
 };
 
@@ -244,6 +246,7 @@ static int intel_mid_pci_irq_enable(struct pci_dev *dev)
 
 	switch (model) {
 	case VFM_MODEL(INTEL_ATOM_SILVERMONT_MID):
+	case VFM_MODEL(INTEL_ATOM_SILVERMONT_MID2):
 		polarity_low = false;
 
 		/* Special treatment for IRQ0 */
@@ -255,13 +258,14 @@ static int intel_mid_pci_irq_enable(struct pci_dev *dev)
 			if (dev->device == PCI_DEVICE_ID_INTEL_MRFLD_HSU)
 				return -EBUSY;
 			/*
-			 * TNG has IRQ0 assigned to eMMC controller. But there
+			 * TNG/ANN has IRQ0 assigned to eMMC controller. But there
 			 * are also other devices with bogus PCI configuration
 			 * that have IRQ0 assigned. This check ensures that
 			 * eMMC gets it. The rest of devices still could be
 			 * enabled without interrupt line being allocated.
 			 */
-			if (dev->device != PCI_DEVICE_ID_INTEL_MRFLD_MMC)
+			if (dev->device != PCI_DEVICE_ID_INTEL_MRFLD_MMC &&
+			    dev->device != PCI_DEVICE_ID_INTEL_MOFLD_EMMC)
 				return 0;
 		}
 		break;

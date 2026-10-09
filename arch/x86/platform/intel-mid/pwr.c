@@ -24,7 +24,10 @@
 #include <linux/mutex.h>
 #include <linux/pci.h>
 
+#include <asm/cpu_device_id.h>
+#include <asm/intel-family.h>
 #include <asm/intel-mid.h>
+#include <asm/processor.h>
 
 /* Registers */
 #define PM_STS			0x00
@@ -84,7 +87,7 @@
 
 /* Supported device IDs */
 #define PCI_DEVICE_ID_PENWELL	0x0828
-#define PCI_DEVICE_ID_TANGIER	0x11a1
+#define PCI_DEVICE_ID_TANGIER	0x11a1 // +ANN
 
 struct mid_pwr_dev {
 	struct pci_dev *pdev;
@@ -458,6 +461,17 @@ static int tng_set_initial_state(struct mid_pwr *pwr)
 		0xffffffff,		/* PM_SSC(2) */
 		0xffffffff,		/* PM_SSC(3) */
 	};
+	/* Keep Chaabi powered on ANN otherwise reboot */
+	static const u32 ann_states[] = {
+		0xffffcfff,		/* PM_SSC(0) */
+		0xffffffff,		/* PM_SSC(1) */
+		0xffffffff,		/* PM_SSC(2) */
+		0xffffffff,		/* PM_SSC(3) */
+	};
+
+	if (boot_cpu_data.x86_vfm == INTEL_ATOM_SILVERMONT_MID2)
+		return mid_set_initial_state(pwr, ann_states);
+
 	return mid_set_initial_state(pwr, states);
 }
 
