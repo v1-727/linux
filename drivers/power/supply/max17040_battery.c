@@ -15,6 +15,7 @@
 #include <linux/delay.h>
 #include <linux/interrupt.h>
 #include <linux/power_supply.h>
+#include <linux/property.h>
 #include <linux/of.h>
 #include <linux/regmap.h>
 #include <linux/slab.h>
@@ -232,7 +233,7 @@ static int max17040_get_of_data(struct max17040_chip *chip)
 {
 	struct device *dev = &chip->client->dev;
 	struct chip_data *data = &max17040_family[
-		(uintptr_t) of_device_get_match_data(dev)];
+		(uintptr_t) device_get_match_data(dev)];
 	int rcomp_len;
 	u8 rcomp[2];
 
@@ -489,11 +490,11 @@ static int max17040_probe(struct i2c_client *client)
 	if (IS_ERR(chip->regmap))
 		return PTR_ERR(chip->regmap);
 	chip_id = (enum chip_id) id->driver_data;
-	if (client->dev.of_node) {
+	if (dev_fwnode(&client->dev)) {
 		ret = max17040_get_of_data(chip);
 		if (ret)
 			return ret;
-		chip_id = (uintptr_t)of_device_get_match_data(&client->dev);
+		chip_id = (uintptr_t)device_get_match_data(&client->dev);
 	}
 	chip->data = max17040_family[chip_id];
 
