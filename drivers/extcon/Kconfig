@@ -69,11 +69,11 @@ config EXTCON_INTEL_CHT_WC
 	  on the Intel Cherrytrail Whiskey Cove PMIC.
 
 config EXTCON_INTEL_MRFLD
-	tristate "Intel Merrifield Basin Cove PMIC extcon driver"
+	tristate "Intel Merrifield Basin Cove / Moorefield Shady Cove PMIC extcon driver"
 	depends on INTEL_SOC_PMIC_MRFLD
 	help
 	  Say Y here to enable extcon support for charger detection / control
-	  on the Intel Merrifield Basin Cove PMIC.
+	  on the Intel Merrifield Basin Cove and Moorefield Shady Cove PMICs.
 
 config EXTCON_LC824206XA
 	tristate "LC824206XA extcon Support"

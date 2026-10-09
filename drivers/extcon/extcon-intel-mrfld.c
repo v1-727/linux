@@ -1,18 +1,26 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * extcon driver for Basin Cove PMIC
+ * extcon driver for Basin Cove and Shady Cove PMICs
  *
  * Copyright (c) 2019, Intel Corporation.
  * Author: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
  */
 
+#include <linux/bitfield.h>
+#include <linux/delay.h>
+#include <linux/devm-helpers.h>
 #include <linux/extcon-provider.h>
 #include <linux/interrupt.h>
+#include <linux/jiffies.h>
 #include <linux/mfd/intel_soc_pmic.h>
 #include <linux/mfd/intel_soc_pmic_mrfld.h>
+#include <linux/minmax.h>
 #include <linux/module.h>
+#include <linux/mutex.h>
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
+#include <linux/string_choices.h>
+#include <linux/workqueue.h>
 
 #include "extcon-intel.h"
 
@@ -45,12 +53,37 @@
 #define BCOVE_CHGRCTRL0_BIT_6		BIT(6)
 #define BCOVE_CHGRCTRL0_CHR_WDT_NOKICK	BIT(7)
 
+/*
+ * Shady Cove on Moorefield phones has no VBUS boost of its own (HACK? Might not be the case for all devices):
+ * the 5V for host mode comes from the external SMB1357 charger in OTG mode. The PMIC is
+ * told it is the OTG source, and PMIC GPIO6 drives the charger's OTG enable
+ * pin.
+ */
+#define SCOVE_CHGRCTRL1			0x4c
+#define SCOVE_CHGRCTRL1_OTGMODE		BIT(6)
+#define SCOVE_GPIO6CTLO			0x84
+#define SCOVE_GPIO6CTLO_OTG_EN		(BIT(5) | BIT(4) | BIT(0))
+
+/*
+ * The boost shuts down on over-current, e.g. on the inrush of a hub or device
+ * plugged into a live port, and stays off until its enable is cycled.
+ */
+#define SCOVE_VBUS_RETRY_MIN_MS		500
+#define SCOVE_VBUS_RETRY_MAX_MS		8000
+#define SCOVE_VBUS_STABLE_MS		10000
+
 struct mrfld_extcon_data {
 	struct device *dev;
 	struct regmap *regmap;
 	struct extcon_dev *edev;
 	unsigned int status;
 	unsigned int id;
+	unsigned int usbiddet;
+	bool host;
+	struct mutex vbus_lock;
+	struct delayed_work vbus_work;
+	unsigned int vbus_retry_ms;
+	unsigned long vbus_trip;
 };
 
 static const unsigned int mrfld_extcon_cable[] = {
@@ -90,12 +123,42 @@ static int mrfld_extcon_sw_control(struct mrfld_extcon_data *data, bool enable)
 	return ret;
 }
 
+static bool mrfld_extcon_is_scove(struct mrfld_extcon_data *data)
+{
+	return BCOVE_VENDOR(data->id) == BCOVE_VENDOR_SCOVE;
+}
+
+static int scove_extcon_get_id(struct mrfld_extcon_data *data)
+{
+	unsigned int status;
+	int ret;
+
+	ret = regmap_read(data->regmap, BCOVE_SCHGRIRQ1, &status);
+	if (ret)
+		return ret;
+
+	switch (FIELD_GET(SCOVE_CHGRIRQ_USBIDDET, status)) {
+	case SCOVE_USBIDDET_GND:
+		return INTEL_USB_ID_GND;
+	case SCOVE_USBIDDET_RID:
+		/*
+		 * Telling RID_A, RID_B and RID_C apart needs the USBID channel
+		 * of the GPADC, which is not supported. Stay in device role.
+		 */
+	default:
+		return INTEL_USB_ID_FLOAT;
+	}
+}
+
 static int mrfld_extcon_get_id(struct mrfld_extcon_data *data)
 {
 	struct regmap *regmap = data->regmap;
 	unsigned int id;
 	bool ground;
 	int ret;
+
+	if (mrfld_extcon_is_scove(data))
+		return scove_extcon_get_id(data);
 
 	ret = regmap_read(regmap, BCOVE_USBIDSTS, &id);
 	if (ret)
@@ -130,8 +193,62 @@ static int mrfld_extcon_get_id(struct mrfld_extcon_data *data)
 	return INTEL_USB_ID_FLOAT;
 }
 
+static int scove_extcon_set_vbus(struct mrfld_extcon_data *data, bool on)
+{
+	struct regmap *regmap = data->regmap;
+	int ret;
+
+	if (on) {
+		ret = regmap_set_bits(regmap, SCOVE_CHGRCTRL1, SCOVE_CHGRCTRL1_OTGMODE);
+		if (!ret)
+			ret = regmap_set_bits(regmap, SCOVE_GPIO6CTLO, SCOVE_GPIO6CTLO_OTG_EN);
+	} else {
+		ret = regmap_clear_bits(regmap, SCOVE_GPIO6CTLO, SCOVE_GPIO6CTLO_OTG_EN);
+		if (!ret)
+			ret = regmap_clear_bits(regmap, SCOVE_CHGRCTRL1, SCOVE_CHGRCTRL1_OTGMODE);
+	}
+	if (ret)
+		dev_err(data->dev, "can't turn VBUS %s: %d\n", str_on_off(on), ret);
+	return ret;
+}
+
+static void scove_extcon_vbus_work(struct work_struct *work)
+{
+	struct mrfld_extcon_data *data =
+		container_of(work, struct mrfld_extcon_data, vbus_work.work);
+
+	guard(mutex)(&data->vbus_lock);
+
+	if (!data->host)
+		return;
+
+	scove_extcon_set_vbus(data, false);
+	msleep(20);
+	scove_extcon_set_vbus(data, true);
+}
+
+/* VBUS dropped while we are the host: the boost tripped, restart it. */
+static void scove_extcon_vbus_lost(struct mrfld_extcon_data *data)
+{
+	guard(mutex)(&data->vbus_lock);
+
+	if (!data->host)
+		return;
+
+	if (time_after(jiffies, data->vbus_trip + msecs_to_jiffies(SCOVE_VBUS_STABLE_MS)))
+		data->vbus_retry_ms = SCOVE_VBUS_RETRY_MIN_MS;
+	else
+		data->vbus_retry_ms = min(data->vbus_retry_ms * 2, SCOVE_VBUS_RETRY_MAX_MS);
+	data->vbus_trip = jiffies;
+
+	dev_warn(data->dev, "VBUS lost in host mode (boost over-current?), restarting in %u ms\n",
+		 data->vbus_retry_ms);
+	mod_delayed_work(system_wq, &data->vbus_work, msecs_to_jiffies(data->vbus_retry_ms));
+}
+
 static int mrfld_extcon_role_detect(struct mrfld_extcon_data *data)
 {
+	bool scove = mrfld_extcon_is_scove(data);
 	unsigned int id;
 	bool usb_host;
 	int ret;
@@ -143,7 +260,28 @@ static int mrfld_extcon_role_detect(struct mrfld_extcon_data *data)
 	id = ret;
 
 	usb_host = (id == INTEL_USB_ID_GND) || (id == INTEL_USB_RID_A);
+
+	/* VBUS goes up before the host starts and down after it stops */
+	if (scove) {
+		guard(mutex)(&data->vbus_lock);
+
+		data->host = usb_host;
+		if (usb_host) {
+			data->vbus_retry_ms = SCOVE_VBUS_RETRY_MIN_MS;
+			scove_extcon_set_vbus(data, true);
+		} else {
+			cancel_delayed_work(&data->vbus_work);
+		}
+	}
+
 	extcon_set_state_sync(data->edev, EXTCON_USB_HOST, usb_host);
+
+	if (scove && !usb_host) {
+		guard(mutex)(&data->vbus_lock);
+
+		if (!data->host)
+			scove_extcon_set_vbus(data, false);
+	}
 
 	return 0;
 }
@@ -167,10 +305,14 @@ static int mrfld_extcon_cable_detect(struct mrfld_extcon_data *data)
 	if (!change)
 		return -ENODATA;
 
-	if (change & BCOVE_CHGRIRQ_USBIDDET) {
+	if (change & data->usbiddet) {
 		ret = mrfld_extcon_role_detect(data);
 		if (ret)
 			return ret;
+	} else if (mrfld_extcon_is_scove(data) &&
+		   (change & BCOVE_CHGRIRQ_VBUSDET) &&
+		   !(status & BCOVE_CHGRIRQ_VBUSDET)) {
+		scove_extcon_vbus_lost(data);
 	}
 
 	data->status = status;
@@ -211,6 +353,14 @@ static int mrfld_extcon_probe(struct platform_device *pdev)
 	data->dev = dev;
 	data->regmap = regmap;
 
+	ret = devm_mutex_init(dev, &data->vbus_lock);
+	if (ret)
+		return ret;
+
+	ret = devm_delayed_work_autocancel(dev, &data->vbus_work, scove_extcon_vbus_work);
+	if (ret)
+		return ret;
+
 	data->edev = devm_extcon_dev_allocate(dev, mrfld_extcon_cable);
 	if (IS_ERR(data->edev))
 		return PTR_ERR(data->edev);
@@ -231,6 +381,11 @@ static int mrfld_extcon_probe(struct platform_device *pdev)
 
 	data->id = id;
 
+	if (mrfld_extcon_is_scove(data))
+		data->usbiddet = SCOVE_CHGRIRQ_USBIDDET;
+	else
+		data->usbiddet = BCOVE_CHGRIRQ_USBIDDET;
+
 	ret = mrfld_extcon_sw_control(data, true);
 	if (ret)
 		return ret;
@@ -247,7 +402,7 @@ static int mrfld_extcon_probe(struct platform_device *pdev)
 	data->status = status;
 
 	mrfld_extcon_clear(data, BCOVE_MIRQLVL1, BCOVE_LVL1_CHGR);
-	mrfld_extcon_clear(data, BCOVE_MCHGRIRQ1, BCOVE_CHGRIRQ_ALL);
+	mrfld_extcon_clear(data, BCOVE_MCHGRIRQ1, BCOVE_CHGRIRQ_ALL | data->usbiddet);
 
 	mrfld_extcon_set(data, BCOVE_USBIDCTRL, BCOVE_USBIDCTRL_ALL);
 
@@ -280,5 +435,5 @@ static struct platform_driver mrfld_extcon_driver = {
 module_platform_driver(mrfld_extcon_driver);
 
 MODULE_AUTHOR("Andy Shevchenko <andriy.shevchenko@linux.intel.com>");
-MODULE_DESCRIPTION("extcon driver for Intel Merrifield Basin Cove PMIC");
+MODULE_DESCRIPTION("extcon driver for Intel Merrifield Basin Cove and Moorefield Shady Cove PMICs");
 MODULE_LICENSE("GPL v2");
