@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Intel Merrifield watchdog platform device library file
+ * Intel Merrifield and Moorefield watchdog platform device library file
  *
  * (C) Copyright 2014 Intel Corporation
  * Author: David Cohen <david.a.cohen@linux.intel.com>
@@ -18,17 +18,18 @@
 #include <linux/platform_data/x86/intel-mid_wdt.h>
 
 #define TANGIER_EXT_TIMER0_MSI 12
+/* "watchdog" entry of the SFI device table on Moorefield (ZX551ML) */
+#define ANNIEDALE_WDT_GSI 59
 
 static struct platform_device wdt_dev = {
 	.name = "intel_mid_wdt",
 	.id = -1,
 };
 
-static int tangier_probe(struct platform_device *pdev)
+static int mid_wdt_map_gsi(struct platform_device *pdev, int gsi)
 {
 	struct irq_alloc_info info;
 	struct intel_mid_wdt_pdata *pdata = pdev->dev.platform_data;
-	int gsi = TANGIER_EXT_TIMER0_MSI;
 	int irq;
 
 	if (!pdata)
@@ -46,12 +47,27 @@ static int tangier_probe(struct platform_device *pdev)
 	return 0;
 }
 
+static int tangier_probe(struct platform_device *pdev)
+{
+	return mid_wdt_map_gsi(pdev, TANGIER_EXT_TIMER0_MSI);
+}
+
+static int anniedale_probe(struct platform_device *pdev)
+{
+	return mid_wdt_map_gsi(pdev, ANNIEDALE_WDT_GSI);
+}
+
 static struct intel_mid_wdt_pdata tangier_pdata = {
 	.probe = tangier_probe,
 };
 
+static struct intel_mid_wdt_pdata anniedale_pdata = {
+	.probe = anniedale_probe,
+};
+
 static const struct x86_cpu_id intel_mid_cpu_ids[] = {
 	X86_MATCH_VFM(INTEL_ATOM_SILVERMONT_MID, &tangier_pdata),
+	X86_MATCH_VFM(INTEL_ATOM_SILVERMONT_MID2, &anniedale_pdata),
 	{}
 };
 

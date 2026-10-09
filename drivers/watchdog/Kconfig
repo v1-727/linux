@@ -1414,7 +1414,8 @@ config INTEL_MID_WATCHDOG
 	  Platforms.
 
 	  This driver currently supports only the watchdog evolution
-	  implementation in SCU, available for Merrifield generation.
+	  implementation in SCU, available for Merrifield and Moorefield
+	  generation.
 
 	  To compile this driver as a module, choose M here.
 

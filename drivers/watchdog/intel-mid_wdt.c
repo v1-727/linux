@@ -3,7 +3,8 @@
  *      intel-mid_wdt: generic Intel MID SCU watchdog driver
  *
  *      Platforms supported so far:
- *      - Merrifield only
+ *      - Merrifield
+ *      - Moorefield
  *
  *      Copyright (C) 2014 Intel Corporation. All rights reserved.
  *      Contact: David Cohen <david.a.cohen@linux.intel.com>
@@ -162,12 +163,6 @@ static int mid_wdt_probe(struct platform_device *pdev)
 	if (!mid->scu)
 		return -EPROBE_DEFER;
 
-	ret = devm_request_irq(dev, pdata->irq, mid_wdt_irq,
-			       IRQF_SHARED | IRQF_NO_SUSPEND, "watchdog",
-			       wdt_dev);
-	if (ret)
-		return ret;
-
 	/*
 	 * The firmware followed by U-Boot leaves the watchdog running
 	 * with the default threshold which may vary. When we get here
@@ -176,10 +171,22 @@ static int mid_wdt_probe(struct platform_device *pdev)
 	 * taking into consideration that there is no way to read values
 	 * back from hardware, is to enforce watchdog being run with
 	 * deterministic values.
+	 *
+	 * Do it before requesting the warning interrupt: the firmware's
+	 * thresholds may have expired already, and restarting the
+	 * watchdog clears the pending warning instead of panicking on it.
 	 */
 	ret = wdt_start(wdt_dev);
 	if (ret)
 		return ret;
+
+	ret = devm_request_irq(dev, pdata->irq, mid_wdt_irq,
+			       IRQF_SHARED | IRQF_NO_SUSPEND, "watchdog",
+			       wdt_dev);
+	if (ret) {
+		wdt_stop(wdt_dev);
+		return ret;
+	}
 
 	/* Make sure the watchdog is serviced */
 	set_bit(WDOG_HW_RUNNING, &wdt_dev->status);
