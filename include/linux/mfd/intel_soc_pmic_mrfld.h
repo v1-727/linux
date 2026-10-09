@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Header file for Intel Merrifield Basin Cove PMIC
+ * Header file for Intel Merrifield Basin Cove and Moorefield Shady Cove PMICs
  *
  * Copyright (C) 2019 Intel Corporation. All rights reserved.
  */
@@ -19,6 +19,10 @@
 #define BCOVE_MINOR(x)		(unsigned int)(((x) & BCOVE_ID_MINREV0) >> 0)
 #define BCOVE_MAJOR(x)		(unsigned int)(((x) & BCOVE_ID_MAJREV0) >> 3)
 #define BCOVE_VENDOR(x)		(unsigned int)(((x) & BCOVE_ID_VENDID0) >> 6)
+
+/* Vendor ID field values */
+#define BCOVE_VENDOR_SCOVE	0	/* Shady Cove */
+#define BCOVE_VENDOR_BCOVE	3	/* Basin Cove */
 
 #define BCOVE_IRQLVL1		0x01
 
@@ -77,5 +81,11 @@
 #define BCOVE_CHGRIRQ_DCDET	BIT(1)
 #define BCOVE_CHGRIRQ_BATTDET	BIT(2)
 #define BCOVE_CHGRIRQ_USBIDDET	BIT(3)
+
+/* Shady Cove: USB ID detection is a 2-bit field in (S)CHGRIRQ1 */
+#define SCOVE_CHGRIRQ_USBIDDET	GENMASK(4, 3)
+#define SCOVE_USBIDDET_RID	0	/* RID_A, RID_B or RID_C */
+#define SCOVE_USBIDDET_GND	1
+#define SCOVE_USBIDDET_FLOAT	2
 
 #endif	/* __INTEL_SOC_PMIC_MRFLD_H__ */

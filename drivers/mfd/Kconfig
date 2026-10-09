@@ -766,7 +766,7 @@ config INTEL_SOC_PMIC_CHTDC_TI
 	  needs the designware-i2c driver to be builtin for the same reason.
 
 config INTEL_SOC_PMIC_MRFLD
-	tristate "Support for Intel Merrifield Basin Cove PMIC"
+	tristate "Support for Intel Merrifield Basin Cove and Moorefield Shady Cove PMICs"
 	depends on GPIOLIB
 	depends on ACPI
 	depends on INTEL_SCU
@@ -774,7 +774,8 @@ config INTEL_SOC_PMIC_MRFLD
 	select REGMAP_IRQ
 	help
 	  Select this option for supporting Basin Cove PMIC device
-	  that is found on Intel Merrifield systems.
+	  that is found on Intel Merrifield systems, and Shady Cove
+	  PMIC device that is found on Intel Moorefield systems.
 
 config MFD_INTEL_LPSS
 	tristate
