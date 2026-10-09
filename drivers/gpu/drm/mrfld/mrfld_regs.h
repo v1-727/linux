@@ -1,0 +1,148 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
+/*
+ * Intel Merrifield/Moorefield display controller registers
+ *
+ * Offsets are relative to BAR0 of the graphics PCI function (00:02.0); the
+ * display controller occupies its first 512 KiB.
+ */
+
+#ifndef __MRFLD_REGS_H__
+#define __MRFLD_REGS_H__
+
+#include <linux/bits.h>
+
+/* Display interrupt routing */
+#define MRFLD_INT_ENABLE		0x20a0
+#define MRFLD_INT_IDENTITY		0x20a4
+#define MRFLD_INT_MASK			0x20a8
+#define   MRFLD_INT_PIPEA_EVENT		BIT(6)
+
+#define MRFLD_GCI_CTRL			0x650c
+#define   MRFLD_GCI_FIXED_ARB		BIT(0)
+
+/* Pipe A timings */
+#define MRFLD_HTOTAL_A			0x60000
+#define MRFLD_HBLANK_A			0x60004
+#define MRFLD_HSYNC_A			0x60008
+#define MRFLD_VTOTAL_A			0x6000c
+#define MRFLD_VBLANK_A			0x60010
+#define MRFLD_VSYNC_A			0x60014
+#define MRFLD_PIPEASRC			0x6001c
+
+#define MRFLD_PIPEACONF			0x70008
+#define   MRFLD_PIPECONF_ENABLE		BIT(31)
+#define   MRFLD_PIPECONF_STATE		BIT(30)
+#define   MRFLD_PIPECONF_DSIPLL_LOCK	BIT(29)
+#define   MRFLD_PIPECONF_FRAME_START	GENMASK(28, 27)
+#define   MRFLD_PIPECONF_PLANE_OFF	BIT(19)
+#define   MRFLD_PIPECONF_CURSOR_OFF	BIT(18)
+
+#define MRFLD_PIPEASTAT			0x70024
+#define   MRFLD_PIPE_VBLANK_ENABLE	BIT(17)
+#define   MRFLD_PIPE_VBLANK_STATUS	BIT(1)
+
+/* FIFO arbitration, watermarks and drain latency */
+#define MRFLD_DSPARB2			0x7002c
+#define MRFLD_DSPARB			0x70030
+#define MRFLD_DSPFW1			0x70034
+#define MRFLD_DSPFW2			0x70038
+#define MRFLD_DSPFW3			0x7003c
+#define MRFLD_DSPFW4			0x70050
+#define MRFLD_DSPFW5			0x70054
+#define MRFLD_DSPFW6			0x70058
+#define MRFLD_DSPSRCTRL			0x7005c
+#define MRFLD_DDL1			0x70060
+#define MRFLD_DDL2			0x70064
+#define MRFLD_DDL3			0x70068
+#define MRFLD_DDL4			0x7006c
+#define MRFLD_DSPFW7			0x70070
+#define MRFLD_CURACNTR			0x70080
+#define MRFLD_DSPCHICKENBIT		0x70400
+#define MRFLD_DSPCHICKENBIT2		0x70404
+#define   MRFLD_CZCLK_UNGATE		BIT(5)	/* HSD 4582616 */
+#define MRFLD_DSPCLK_GATE_D		0x70500
+#define MRFLD_RAMCLK_GATE_D		0x70504
+#define MRFLD_FBDC_CHICKEN		0x70508
+
+/* Plane A */
+#define MRFLD_DSPACNTR			0x70180
+#define   MRFLD_DSPCNTR_ENABLE		BIT(31)
+#define   MRFLD_DSPCNTR_FORMAT_MASK	GENMASK(29, 26)
+#define   MRFLD_DSPCNTR_RGB565		(0x5 << 26)
+#define   MRFLD_DSPCNTR_XRGB8888	(0x6 << 26)
+#define MRFLD_DSPALINOFF		0x70184
+#define MRFLD_DSPASTRIDE		0x70188
+#define MRFLD_DSPAPOS			0x7018c
+#define MRFLD_DSPASIZE			0x70190
+#define MRFLD_DSPASURF			0x7019c
+
+#define MRFLD_VGACNTRL			0x71400
+#define   MRFLD_VGA_DISABLE		BIT(31)
+
+/* MIPI port A and its DSI controller */
+#define MRFLD_MIPI			0x61190
+#define   MRFLD_MIPI_PORT_EN		BIT(31)
+#define   MRFLD_MIPI_PASS_TO_AFE	BIT(16)	/* release LP output hold */
+#define   MRFLD_MIPI_BANDGAP_CHICKEN	BIT(8)
+
+#define MRFLD_DSI_DEVICE_READY		0xb000
+#define   MRFLD_DSI_READY		BIT(0)
+#define   MRFLD_DSI_ULPS_MASK		GENMASK(2, 1)
+#define   MRFLD_DSI_ULPS_ENTER		(0x2 << 1)
+#define   MRFLD_DSI_ULPS_EXIT		(0x1 << 1)
+#define MRFLD_DSI_INTR_STAT		0xb004
+#define MRFLD_DSI_INTR_EN		0xb008
+#define   MRFLD_DSI_DPI_FIFO_UNDERRUN	BIT(20)
+#define   MRFLD_DSI_RX_DATA_VALID	BIT(29)
+#define MRFLD_DSI_FUNC_PRG		0xb00c
+#define   MRFLD_DSI_FMT_RGB888		(0x4 << 7)
+#define MRFLD_DSI_HS_TX_TIMEOUT		0xb010
+#define MRFLD_DSI_LP_RX_TIMEOUT		0xb014
+#define MRFLD_DSI_TURN_AROUND_TIMEOUT	0xb018
+#define MRFLD_DSI_DEVICE_RESET_TIMER	0xb01c
+#define MRFLD_DSI_DPI_RESOLUTION	0xb020
+#define MRFLD_DSI_HSYNC_COUNT		0xb028
+#define MRFLD_DSI_HBP_COUNT		0xb02c
+#define MRFLD_DSI_HFP_COUNT		0xb030
+#define MRFLD_DSI_HACTIVE_COUNT		0xb034
+#define MRFLD_DSI_VSYNC_COUNT		0xb038
+#define MRFLD_DSI_VBP_COUNT		0xb03c
+#define MRFLD_DSI_VFP_COUNT		0xb040
+#define MRFLD_DSI_HIGH_LOW_SWITCH_COUNT	0xb044
+#define MRFLD_DSI_DPI_CONTROL		0xb048
+#define   MRFLD_DSI_DPI_SHUTDOWN	BIT(0)
+#define   MRFLD_DSI_DPI_TURN_ON		BIT(1)
+#define MRFLD_DSI_INIT_COUNT		0xb050
+#define MRFLD_DSI_MAX_RETURN_PKT_SIZE	0xb054
+#define MRFLD_DSI_VIDEO_MODE_FORMAT	0xb058
+#define MRFLD_DSI_EOT_DISABLE		0xb05c
+#define   MRFLD_DSI_EOT_DISABLE_MASK	GENMASK(7, 0)
+#define MRFLD_DSI_LP_BYTECLK		0xb060
+#define MRFLD_DSI_LP_GEN_DATA		0xb064
+#define MRFLD_DSI_HS_GEN_DATA		0xb068
+#define MRFLD_DSI_LP_GEN_CTRL		0xb06c
+#define MRFLD_DSI_HS_GEN_CTRL		0xb070
+#define   MRFLD_DSI_GEN_VC_SHIFT	6
+#define   MRFLD_DSI_GEN_DATA0_SHIFT	8	/* short packet byte 0 / word count */
+#define   MRFLD_DSI_GEN_DATA1_SHIFT	16	/* short packet byte 1 */
+#define MRFLD_DSI_GEN_FIFO_STAT		0xb074
+#define   MRFLD_DSI_FIFO_HS_DATA_EMPTY	BIT(2)
+#define   MRFLD_DSI_FIFO_LP_DATA_EMPTY	BIT(10)
+#define   MRFLD_DSI_FIFO_HS_CTRL_EMPTY	BIT(18)
+#define   MRFLD_DSI_FIFO_LP_CTRL_EMPTY	BIT(26)
+#define   MRFLD_DSI_FIFO_DBI_EMPTY	BIT(27)
+#define   MRFLD_DSI_FIFO_DPI_EMPTY	BIT(28)
+#define MRFLD_DSI_DPHY_PARAM		0xb080
+#define MRFLD_DSI_CLK_LANE_SWITCH_TIME	0xb088
+#define MRFLD_DSI_CONTROL		0xb104
+
+/* Graphics PCI function config space */
+#define MRFLD_PCI_BSM			0x5c	/* stolen memory base */
+#define MRFLD_PCI_MSAC			0x60	/* aperture size */
+#define   MRFLD_MSAC_APERTURE		GENMASK(29, 28)
+#define MRFLD_PCI_BGSM			0x70	/* GTT base in RAM */
+
+/* GTT entries */
+#define MRFLD_PTE_VALID			BIT(0)
+
+#endif

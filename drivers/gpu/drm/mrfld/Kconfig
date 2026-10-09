@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: GPL-2.0-only
+config DRM_MRFLD
+	tristate "Intel Merrifield/Moorefield display"
+	depends on DRM && PCI && MMU && X86 && ACPI
+	depends on INTEL_SCU_IPC && GPIOLIB
+	depends on BACKLIGHT_CLASS_DEVICE
+	depends on IOSF_MBI || !IOSF_MBI
+	select DRM_CLIENT_SELECTION
+	select DRM_GEM_SHMEM_HELPER
+	select DRM_KMS_HELPER
+	select DRM_MIPI_DSI
+	help
+	  Display controller of the Intel Atom Z35xx (Moorefield) SoCs, with
+	  the MIPI DSI video mode panel of the Asus ZE551ML/ZX550ML phone
+	  family (Novatek NT35596, TM or AUO glass) on pipe A. The panel's
+	  GPIOs and LCD ID come from ACPI.
+
+	  If M is selected the module will be called mrfld.
