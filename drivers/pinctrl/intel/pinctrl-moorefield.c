@@ -14,6 +14,7 @@
 
 #include <linux/pinctrl/pinctrl.h>
 
+#include "pinctrl-intel.h"
 #include "pinctrl-tangier.h"
 
 static const struct pinctrl_pin_desc mofld_pins[] = {
@@ -285,6 +286,54 @@ static const struct pinctrl_pin_desc mofld_pins[] = {
 	PINCTRL_PIN(250, "JTAG_TRST"),
 };
 
+static const unsigned int mofld_sdio_pins[] = { 38, 39, 40, 41, 42, 43, 44 };
+static const unsigned int mofld_i2s2_pins[] = { 63, 64, 65, 66 };
+static const unsigned int mofld_spi5_pins[] = { 78, 79, 80, 81, 82, 83, 84 };
+static const unsigned int mofld_uart0_pins[] = { 109, 110, 111, 112 };
+static const unsigned int mofld_uart1_pins[] = { 113, 114, 115, 116 };
+static const unsigned int mofld_uart2_pins[] = { 117, 118, 119, 120 };
+static const unsigned int mofld_pwm0_pins[] = { 130 };
+static const unsigned int mofld_pwm1_pins[] = { 131 };
+static const unsigned int mofld_pwm2_pins[] = { 138 };
+static const unsigned int mofld_pwm3_pins[] = { 139 };
+
+static const struct intel_pingroup mofld_groups[] = {
+	PIN_GROUP("sdio_grp", mofld_sdio_pins, 1),
+	PIN_GROUP("i2s2_grp", mofld_i2s2_pins, 1),
+	PIN_GROUP("spi5_grp", mofld_spi5_pins, 1),
+	PIN_GROUP("uart0_grp", mofld_uart0_pins, 1),
+	PIN_GROUP("uart1_grp", mofld_uart1_pins, 1),
+	PIN_GROUP("uart2_grp", mofld_uart2_pins, 1),
+	PIN_GROUP("pwm0_grp", mofld_pwm0_pins, 1),
+	PIN_GROUP("pwm1_grp", mofld_pwm1_pins, 1),
+	PIN_GROUP("pwm2_grp", mofld_pwm2_pins, 1),
+	PIN_GROUP("pwm3_grp", mofld_pwm3_pins, 1),
+};
+
+static const char * const mofld_sdio_groups[] = { "sdio_grp" };
+static const char * const mofld_i2s2_groups[] = { "i2s2_grp" };
+static const char * const mofld_spi5_groups[] = { "spi5_grp" };
+static const char * const mofld_uart0_groups[] = { "uart0_grp" };
+static const char * const mofld_uart1_groups[] = { "uart1_grp" };
+static const char * const mofld_uart2_groups[] = { "uart2_grp" };
+static const char * const mofld_pwm0_groups[] = { "pwm0_grp" };
+static const char * const mofld_pwm1_groups[] = { "pwm1_grp" };
+static const char * const mofld_pwm2_groups[] = { "pwm2_grp" };
+static const char * const mofld_pwm3_groups[] = { "pwm3_grp" };
+
+static const struct intel_function mofld_functions[] = {
+	FUNCTION("sdio", mofld_sdio_groups),
+	FUNCTION("i2s2", mofld_i2s2_groups),
+	FUNCTION("spi5", mofld_spi5_groups),
+	FUNCTION("uart0", mofld_uart0_groups),
+	FUNCTION("uart1", mofld_uart1_groups),
+	FUNCTION("uart2", mofld_uart2_groups),
+	FUNCTION("pwm0", mofld_pwm0_groups),
+	FUNCTION("pwm1", mofld_pwm1_groups),
+	FUNCTION("pwm2", mofld_pwm2_groups),
+	FUNCTION("pwm3", mofld_pwm3_groups),
+};
+
 static const struct tng_family mofld_families[] = {
 	TNG_FAMILY(0, 0, 12),
 	TNG_FAMILY(1, 13, 24),
@@ -306,8 +355,12 @@ static const struct tng_family mofld_families[] = {
 static const struct tng_pinctrl mofld_soc_data = {
 	.pins = mofld_pins,
 	.npins = ARRAY_SIZE(mofld_pins),
+	.groups = mofld_groups,
+	.ngroups = ARRAY_SIZE(mofld_groups),
 	.families = mofld_families,
 	.nfamilies = ARRAY_SIZE(mofld_families),
+	.functions = mofld_functions,
+	.nfunctions = ARRAY_SIZE(mofld_functions),
 };
 
 static const struct acpi_device_id mofld_acpi_table[] = {
