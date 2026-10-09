@@ -10,8 +10,12 @@
 
 #include <linux/bitfield.h>
 #include <linux/string.h>
+
+#include <asm/cpu_device_id.h>
+#include <asm/intel-family.h>
 #include <linux/delay.h>
 #include <linux/highmem.h>
+#include <linux/log2.h>
 #include <linux/module.h>
 #include <linux/pci.h>
 #include <linux/dma-mapping.h>
@@ -1323,13 +1327,24 @@ static int intel_mrfld_mmc_probe_slot(struct sdhci_pci_slot *slot)
 		 * There are two PCB designs of SD card slot with the opposite
 		 * card detection sense. Quirk this out by ignoring GPIO state
 		 * completely in the custom ->get_cd() callback.
+		 *
+		 * Moorefield has CD via GPIO
 		 */
-		slot->host->mmc_host_ops.get_cd = mrfld_get_cd;
+		if (boot_cpu_data.x86_vfm != INTEL_ATOM_SILVERMONT_MID2)
+			slot->host->mmc_host_ops.get_cd = mrfld_get_cd;
 		slot->host->quirks2 |= SDHCI_QUIRK2_NO_1_8_V;
 		break;
 	case INTEL_MRFLD_SDIO:
 		/* Advertise 2.0v for compatibility with the SDIO card's OCR */
 		slot->host->ocr_mask = MMC_VDD_20_21 | MMC_VDD_165_195;
+		/*
+		 * WiFi card is supplied by WLAN-EN, not
+		 * by the slot, so accept whatever voltage its OCR asks for. The
+		 * slot itself always runs at 1.8V.
+		 */
+		if (slot->chip->pdev->device == PCI_DEVICE_ID_INTEL_MOFLD_SDIO)
+			slot->host->ocr_mask |= MMC_VDD_29_30 | MMC_VDD_30_31 |
+						MMC_VDD_32_33 | MMC_VDD_33_34;
 		slot->host->mmc->caps |= MMC_CAP_NONREMOVABLE |
 					 MMC_CAP_POWER_OFF_CARD;
 		break;
@@ -1347,6 +1362,32 @@ static const struct sdhci_pci_fixes sdhci_intel_mrfld_mmc = {
 			SDHCI_QUIRK2_PRESET_VALUE_BROKEN,
 	.allow_runtime_pm = true,
 	.probe_slot	= intel_mrfld_mmc_probe_slot,
+};
+
+/* Whatever voltage was negotiated with the card, power the slot at 1.8V */
+static void mofld_sdio_set_power(struct sdhci_host *host, unsigned char mode,
+				 unsigned short vdd)
+{
+	sdhci_set_power(host, mode, ilog2(MMC_VDD_165_195));
+}
+
+static const struct sdhci_ops sdhci_intel_mofld_sdio_ops = {
+	.set_clock		= sdhci_set_clock,
+	.set_power		= mofld_sdio_set_power,
+	.enable_dma		= sdhci_pci_enable_dma,
+	.set_bus_width		= sdhci_set_bus_width,
+	.reset			= sdhci_reset,
+	.set_uhs_signaling	= sdhci_set_uhs_signaling,
+	.hw_reset		= sdhci_pci_hw_reset,
+};
+
+static const struct sdhci_pci_fixes sdhci_intel_mofld_sdio = {
+	.quirks		= SDHCI_QUIRK_NO_ENDATTR_IN_NOPDESC,
+	.quirks2	= SDHCI_QUIRK2_BROKEN_HS200 |
+			SDHCI_QUIRK2_PRESET_VALUE_BROKEN,
+	.allow_runtime_pm = true,
+	.probe_slot	= intel_mrfld_mmc_probe_slot,
+	.ops		= &sdhci_intel_mofld_sdio_ops,
 };
 
 #define JMB388_SAMPLE_COUNT	5
@@ -1907,6 +1948,9 @@ static const struct pci_device_id pci_ids[] = {
 	SDHCI_PCI_DEVICE(INTEL, CLV_EMMC0, intel_mfd_emmc),
 	SDHCI_PCI_DEVICE(INTEL, CLV_EMMC1, intel_mfd_emmc),
 	SDHCI_PCI_DEVICE(INTEL, MRFLD_MMC, intel_mrfld_mmc),
+	SDHCI_PCI_DEVICE(INTEL, MOFLD_EMMC, intel_mrfld_mmc),
+	SDHCI_PCI_DEVICE(INTEL, MOFLD_SD,   intel_mrfld_mmc),
+	SDHCI_PCI_DEVICE(INTEL, MOFLD_SDIO, intel_mofld_sdio),
 	SDHCI_PCI_DEVICE(INTEL, SPT_EMMC,  intel_byt_emmc),
 	SDHCI_PCI_DEVICE(INTEL, SPT_SDIO,  intel_byt_sdio),
 	SDHCI_PCI_DEVICE(INTEL, SPT_SD,    intel_byt_sd),
