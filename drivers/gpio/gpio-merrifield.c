@@ -15,6 +15,9 @@
 #include <linux/pci.h>
 #include <linux/types.h>
 
+#include <asm/cpu_device_id.h>
+#include <asm/intel-family.h>
+
 #include "gpio-tangier.h"
 
 /* Intel Merrifield has 192 GPIO pins */
@@ -49,6 +52,33 @@ static const struct tng_gpio_pinrange mrfld_gpio_ranges[] = {
 	GPIO_PINRANGE(190, 191, 178),
 };
 
+static const struct tng_gpio_pinrange mofld_gpio_ranges[] = {
+	GPIO_PINRANGE(0, 11, 152),
+	GPIO_PINRANGE(12, 13, 130),
+	GPIO_PINRANGE(14, 15, 148),
+	GPIO_PINRANGE(16, 16, 164),
+	GPIO_PINRANGE(17, 18, 95),
+	GPIO_PINRANGE(19, 22, 91),
+	GPIO_PINRANGE(23, 30, 97),
+	GPIO_PINRANGE(32, 43, 55),
+	GPIO_PINRANGE(44, 63, 196),
+	GPIO_PINRANGE(64, 67, 192),
+	GPIO_PINRANGE(68, 69, 165),
+	GPIO_PINRANGE(70, 71, 53),
+	GPIO_PINRANGE(72, 76, 229),
+	GPIO_PINRANGE(77, 86, 25),
+	GPIO_PINRANGE(89, 96, 37),
+	GPIO_PINRANGE(102, 119, 71),
+	GPIO_PINRANGE(120, 123, 67),
+	GPIO_PINRANGE(124, 135, 109),
+	GPIO_PINRANGE(137, 142, 167),
+	GPIO_PINRANGE(154, 161, 122),
+	GPIO_PINRANGE(162, 163, 150),
+	GPIO_PINRANGE(164, 176, 216),
+	GPIO_PINRANGE(164, 175, 234),
+	GPIO_PINRANGE(176, 191, 132),
+};
+
 static const char *mrfld_gpio_get_pinctrl_dev_name(struct tng_gpio *priv)
 {
 	struct device *dev = priv->dev;
@@ -61,6 +91,23 @@ static const char *mrfld_gpio_get_pinctrl_dev_name(struct tng_gpio *priv)
 		acpi_dev_put(adev);
 	} else {
 		name = "pinctrl-merrifield";
+	}
+
+	return name;
+}
+
+static const char *mofld_gpio_get_pinctrl_dev_name(struct tng_gpio *priv)
+{
+	struct device *dev = priv->dev;
+	struct acpi_device *adev;
+	const char *name;
+
+	adev = acpi_dev_get_first_match_dev("INTC1003", NULL, -1);
+	if (adev) {
+		name = devm_kstrdup(dev, acpi_dev_name(adev), GFP_KERNEL);
+		acpi_dev_put(adev);
+	} else {
+		name = "pinctrl-moorefield";
 	}
 
 	return name;
@@ -98,11 +145,19 @@ static int mrfld_gpio_probe(struct pci_dev *pdev, const struct pci_device_id *id
 		return dev_err_probe(dev, PTR_ERR(priv->reg_base),
 				"I/O memory mapping error\n");
 
-	priv->pin_info.pin_ranges = mrfld_gpio_ranges;
-	priv->pin_info.nranges = ARRAY_SIZE(mrfld_gpio_ranges);
-	priv->pin_info.name = mrfld_gpio_get_pinctrl_dev_name(priv);
-	if (!priv->pin_info.name)
-		return -ENOMEM;
+	if (boot_cpu_data.x86_vfm == INTEL_ATOM_SILVERMONT_MID2) {
+		priv->pin_info.pin_ranges = mofld_gpio_ranges;
+		priv->pin_info.nranges = ARRAY_SIZE(mofld_gpio_ranges);
+		priv->pin_info.name = mofld_gpio_get_pinctrl_dev_name(priv);
+		if (!priv->pin_info.name)
+			return -ENOMEM;
+	} else {
+		priv->pin_info.pin_ranges = mrfld_gpio_ranges;
+		priv->pin_info.nranges = ARRAY_SIZE(mrfld_gpio_ranges);
+		priv->pin_info.name = mrfld_gpio_get_pinctrl_dev_name(priv);
+		if (!priv->pin_info.name)
+			return -ENOMEM;
+	}
 
 	priv->info.base = gpio_base;
 	priv->info.ngpio = MRFLD_NGPIO;
